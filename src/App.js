@@ -15,17 +15,29 @@ const containerStyle = {
 };
 
 const center = {
-  lat: 51.5074,
+  lat: 51.5167,
   lng: -0.1278,
 };
 
+const paddington = {
+  lat: 51.5151,   
+  lng: -0.1764,
+};
+
+const paddingtonName = "Paddington Station, London, UK";
+
 function App() {
-  const [start, setStart] = useState(null);
-  const [end, setEnd] = useState(null);
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [startLatLng, setStartLatLng] = useState(null);
+  const [endLatLng, setEndLatLng] = useState(null);
   const [directions, setDirections] = useState(null);
+  const [leg1Directions, setLeg1Directions] = useState(null);
+  const [leg2Directions, setLeg2Directions] = useState(null);
   const [crimeData, setCrimeData] = useState(null);
   const [startAutocomplete, setStartAutocomplete] = useState(null);
   const [endAutocomplete, setEndAutocomplete] = useState(null);
+  const [isCalculating, setIsCalculating] = useState(false);
 
   // Fetch the most recent crime in London
   useEffect(() => {
@@ -33,13 +45,21 @@ function App() {
   }, []);
 
   const handleDirections = () => {
-    if (!start || !end) return;
+    if (!startLatLng || !endLatLng) {
+      alert("Please select both start and destination locations");
+      return;
+    }
 
-    setDirections({
-      origin: start,
-      destination: end,
-      travelMode: "TRANSIT", // Options: "DRIVING", "WALKING", "BICYCLING", "TRANSIT"
-    });
+    setIsCalculating(true);
+    
+    // First leg: Start to Paddington
+    const leg1 = {
+      origin: startLatLng,
+      destination: paddington,
+      travelMode: "TRANSIT",
+    };
+    
+    setLeg1Directions(leg1);
   };
 
   const fetchCrimeData = () => {
@@ -53,6 +73,15 @@ function App() {
       .catch(error => console.error("Error fetching crime data: ", error));
   };
 
+  // Combine both route segments into a single path for display
+  const combinedDirections = React.useMemo(() => {
+    if (leg1Directions && leg2Directions) {
+      // This is just for display purposes - we're showing both legs together
+      return leg2Directions;
+    }
+    return null;
+  }, [leg1Directions, leg2Directions]);
+
   return (
     <LoadScript googleMapsApiKey={GOOGLE_API_KEY} libraries={["places"]}>
       {/* Crime Report Section (Top-Right) */}
@@ -64,7 +93,8 @@ function App() {
         padding: "15px",
         backgroundColor: "#f8f9fa",
         boxShadow: "0px 4px 6px rgba(0, 0, 0, 0.1)",
-        borderRadius: "5px"
+        borderRadius: "5px",
+        zIndex: 1
       }}>
         <h3 style={{ margin: "0 0 10px 0" }}>🔴 Latest Crime in London</h3>
         {crimeData ? (
@@ -85,7 +115,11 @@ function App() {
             if (startAutocomplete) {
               const place = startAutocomplete.getPlace();
               if (place.geometry && place.geometry.location) {
-                setStart(place.geometry.location);
+                setStart(place.formatted_address || place.name);
+                setStartLatLng({
+                  lat: place.geometry.location.lat(),
+                  lng: place.geometry.location.lng()
+                });
               }
             }
           }}
@@ -104,7 +138,11 @@ function App() {
             if (endAutocomplete) {
               const place = endAutocomplete.getPlace();
               if (place.geometry && place.geometry.location) {
-                setEnd(place.geometry.location);
+                setEnd(place.formatted_address || place.name);
+                setEndLatLng({
+                  lat: place.geometry.location.lat(),
+                  lng: place.geometry.location.lng()
+                });
               }
             }
           }}
@@ -118,28 +156,86 @@ function App() {
 
         <button 
           onClick={handleDirections} 
-          style={{ padding: "10px 20px", marginTop: "10px", fontSize: "1rem", cursor: "pointer", backgroundColor: "#007bff", color: "#fff", border: "none", borderRadius: "5px" }}
+          disabled={isCalculating}
+          style={{ 
+            padding: "10px 20px", 
+            marginTop: "10px", 
+            fontSize: "1rem", 
+            cursor: isCalculating ? "not-allowed" : "pointer", 
+            backgroundColor: isCalculating ? "#cccccc" : "#007bff", 
+            color: "#fff", 
+            border: "none", 
+            borderRadius: "5px" 
+          }}
         >
-          Find Route
+          {isCalculating ? "Calculating..." : "Find Route"}
         </button>
       </div>
 
       {/* Map Section */}
       <GoogleMap mapContainerStyle={containerStyle} center={center} zoom={12}>
-        {directions && (
+        {/* First leg - Start to Paddington */}
+        {leg1Directions && (
           <DirectionsService
-            options={directions}
+            options={leg1Directions}
             callback={(result, status) => {
               if (status === "OK") {
-                setDirections(result);
+                setLeg1Directions(result);
+                
+                // Second leg: Paddington to Destination
+                const leg2 = {
+                  origin: paddington,
+                  destination: endLatLng,
+                  travelMode: "TRANSIT",
+                };
+                setLeg2Directions(leg2);
               } else {
-                console.error("Directions request failed due to " + status);
+                console.error("First leg directions request failed due to " + status);
+                alert("Could not find a route to Paddington. Please try different locations.");
+                setIsCalculating(false);
               }
             }}
           />
         )}
 
-        {directions && <DirectionsRenderer directions={directions} />}
+        {/* Second leg - Paddington to Destination */}
+        {leg2Directions && leg2Directions !== leg1Directions && (
+          <DirectionsService
+            options={leg2Directions}
+            callback={(result, status) => {
+              if (status === "OK") {
+                setLeg2Directions(result);
+                setIsCalculating(false);
+              } else {
+                console.error("Second leg directions request failed due to " + status);
+                alert("Could not find a route from Paddington to destination. Please try different locations.");
+                setIsCalculating(false);
+              }
+            }}
+          />
+        )}
+
+        {/* Render leg 1 */}
+        {leg1Directions && leg1Directions.routes && (
+          <DirectionsRenderer
+            options={{
+              directions: leg1Directions,
+              markerOptions: { visible: false },
+              polylineOptions: { strokeColor: '#007bff' }
+            }}
+          />
+        )}
+
+        {/* Render leg 2 */}
+        {leg2Directions && leg2Directions.routes && leg2Directions !== leg1Directions && (
+          <DirectionsRenderer
+            options={{
+              directions: leg2Directions,
+              markerOptions: { visible: false },
+              polylineOptions: { strokeColor: '#ff6347' }
+            }}
+          />
+        )}
       </GoogleMap>
     </LoadScript>
   );
