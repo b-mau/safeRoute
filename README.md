@@ -1,6 +1,11 @@
-# Getting Started with Create React App
+# safeRoute
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+SafeRoute is a platform that finds the safest path from a given location to a destination.
+Frontend: Used Node.js, React, a variety of Google APIs and real-time data to create a visual and interactive web application.
+Backend: Built and trained our own machine learning model with past crime data in London. Leveraged python - tensorflow, geopy, geopandas, numpy, etc. Subsequently, quantified London coordinates based on safety and created implementations to take safer routes (within reasonable considerations of distance and time).
+
+Video Demo:
+https://www.loom.com/share/3d6cc726d533409fb79d55684fe9629c?sid=67c9a0df-10ce-4856-9734-ad5ae2054e23
 
 ## Available Scripts
 
